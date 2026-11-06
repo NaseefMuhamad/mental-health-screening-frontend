@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import Navbar from '../components/Navbar';
 
-// A changed routeKey resets transient search/menu state, not the shared demo store.
+// A changed routeKey resets transient search/menu state, while the backend retains saved records.
 export default function DashboardLayout({
   activePage = 'Dashboard',
   activeKey = 'dashboard',
@@ -59,6 +59,7 @@ function DashboardShell({ activePage, activeKey, searchable, children }) {
     document.body.style.overflow = 'hidden';
 
     const sidebar = sidebarRef.current;
+    const toggleButton = toggleRef.current;
     sidebar?.querySelector('a[aria-current="page"], a[href], button')?.focus();
 
     function onKeyDown(event) {
@@ -94,9 +95,9 @@ function DashboardShell({ activePage, activeKey, searchable, children }) {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener('keydown', onKeyDown);
       // Cleanup runs after the background becomes interactive again.
-      if (toggleRef.current?.isConnected
+      if (toggleButton?.isConnected
         && window.matchMedia('(max-width: 760px)').matches) {
-        toggleRef.current.focus();
+        toggleButton.focus();
       }
     };
   }, [mobileMenuOpen]);
@@ -148,7 +149,7 @@ function DashboardShell({ activePage, activeKey, searchable, children }) {
           {typeof children === 'function' ? children({ query }) : children}
           <footer className="page-footer">
             <span>Mental Health Screening Support</span>
-            <span>Fictional demo workspace · no backend connected</span>
+            <span>Staff workspace · records supplied by the backend</span>
           </footer>
         </main>
       </div>

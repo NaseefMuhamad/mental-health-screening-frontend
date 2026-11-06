@@ -1,48 +1,63 @@
-// API calls are disabled until the real backend contract has been reviewed.
-export const apiEnabled = import.meta.env.VITE_ENABLE_API === 'true';
-const baseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/$/, '');
-let accessToken = null;
-export function setAccessToken(token) { accessToken = token || null; }
-
-export class ApiError extends Error {
-  constructor(message, status = 0, details = null) {
-    super(message); this.name = 'ApiError'; this.status = status; this.details = details;
-  }
+export const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+export const apiEnabled = true;
+// Per-tab persistence survives refresh without storing passwords or user profiles.
+const sessionKey = `screening-session:${apiBaseUrl}`;
+function readStoredToken() {
+  try { return window.sessionStorage.getItem(sessionKey) || null; }
+  catch { return null; }
 }
-
-export async function apiRequest(path, { method = 'GET', body, query, signal } = {}) {
-  if (!apiEnabled) throw new ApiError('Backend integration is disabled. The preview uses fictional data.');
-  if (!path.startsWith('/') || path.startsWith('//')) throw new ApiError('API paths must begin with one slash.');
-  const url = new URL(`${baseUrl}${path}`);
-  if (!['http:', 'https:'].includes(url.protocol)) throw new ApiError('Use an HTTP or HTTPS API URL.');
-  for (const [key, value] of Object.entries(query || {})) {
-    if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, String(value));
-  }
+let accessToken = readStoredToken();
+export function setAccessToken(value) {
+  accessToken = value || null;
+  try {
+    if (accessToken) window.sessionStorage.setItem(sessionKey, accessToken);
+    else window.sessionStorage.removeItem(sessionKey);
+  } catch { /* Continue with memory-only access if browser storage is unavailable. */ }
+}
+export function getAccessToken() { return accessToken; }
+export class ApiError extends Error {
+  constructor(message, status) { super(message); this.name = 'ApiError'; this.status = status; }
+}
+export async function request(path, { method = 'GET', body, signal, authenticated = true } = {}) {
+  const token = authenticated ? accessToken : null;
   const headers = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
-  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const timeout = new AbortController();
+  const timer = setTimeout(() => timeout.abort(), 20000);
   let response;
   try {
-    response = await fetch(url, { method, headers, credentials: 'include', signal,
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
+    response = await fetch(`${apiBaseUrl}${path}`, {
+      method, headers, body: body === undefined ? undefined : JSON.stringify(body),
+      signal: signal ? AbortSignal.any([signal, timeout.signal]) : timeout.signal,
+      cache: 'no-store', credentials: 'omit',
+    });
   } catch (error) {
-    if (error.name === 'AbortError') throw error;
-    throw new ApiError('Unable to reach the backend. Check its address and connection.');
-  }
-  const text = await response.text();
-  let data = null;
-  if (text) {
-    try { data = JSON.parse(text); }
-    catch {
-      if (response.ok) throw new ApiError('The backend returned an unexpected non-JSON response.', response.status);
-    }
-  }
+    if (signal?.aborted) throw error;
+    throw new ApiError(timeout.signal.aborted ? 'The backend took too long to respond. Check its terminal before retrying a save.' : `Cannot reach the backend at ${apiBaseUrl}. Check that it is running and allows this frontend address.`, 0);
+  } finally { clearTimeout(timer); }
+  const data = response.status === 204 ? null : await response.json().catch(() => null);
   if (!response.ok) {
+    if (response.status === 401 && token && token === accessToken) {
+      setAccessToken(null);
+      window.dispatchEvent(new Event('session-expired'));
+    }
     const detail = data?.detail;
-    const message = typeof detail === 'string' ? detail :
-      Array.isArray(detail) ? detail.map(item => `${(item.loc || []).join('.')}: ${item.msg || 'Invalid value'}`).join('; ') :
-      `Request failed (${response.status}).`;
-    throw new ApiError(message, response.status, data);
+    const message = Array.isArray(detail) ? detail.map(item => `${item.loc?.slice(1).join('.') || 'Input'}: ${item.msg}`).join('; ') : typeof detail === 'string' ? detail : `Request failed (${response.status}).`;
+    throw new ApiError(message, response.status);
   }
   return data;
+}
+export function queryString(values = {}) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(values)) if (value !== '' && value !== undefined && value !== null) params.set(key, String(value));
+  return params.size ? `?${params}` : '';
+}
+export async function allPages(path, { signal, ...filters } = {}) {
+  const items = [];
+  for (let offset = 0; ; offset += 100) {
+    const page = await request(path + queryString({ ...filters, offset, limit: 100 }), { signal });
+    items.push(...page.items);
+    if (!page.items.length || items.length >= page.total) return items;
+  }
 }

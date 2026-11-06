@@ -1,19 +1,21 @@
-import { Users, ClipboardCheck, Clock3, CalendarCheck } from 'lucide-react';
-import StatCard from '../components/StatCard';
+import { useCallback } from 'react';
+import { ClipboardCheck, Clock3, CalendarCheck, ClipboardList } from 'lucide-react';
+import useResource from '../hooks/useResource';
+import { request, allPages } from '../services/api';
+import { screeningService } from '../services/screeningService';
 import ScreeningActivityChart from '../components/ScreeningActivityChart';
-import RecentRecordsTable from '../components/RecentRecordsTable';
-import { useDemoStore, recordRows, activityRows, sampleDate, samplePeriod } from './demoStore';
-import { PageHeader, DemoNotice, Panel } from './PageSupport';
-export default function Dashboard({ query = '' }) {
-  const data = useDemoStore();
-  const activity = activityRows(data);
-  const pending = data.screenings.filter(item => item.status === 'Awaiting review').length;
-  const due = data.followups.filter(item => item.status === 'Scheduled' && item.dueDate <= sampleDate).length;
-  const stats = [
-    { label: 'Registered students', value: data.students.length, description: 'All fictional student records', icon: Users },
-    { label: 'Screenings in sample week', value: activity.reduce((sum, day) => sum + day.screenings, 0), description: samplePeriod, icon: ClipboardCheck, tone: 'teal' },
-    { label: 'Awaiting review', value: pending, description: 'All sample screening sessions', icon: Clock3, tone: 'amber' },
-    { label: 'Follow-ups due', value: due, description: `Scheduled on or before ${sampleDate}`, icon: CalendarCheck, tone: 'purple' },
-  ];
-  return <><PageHeader title="Dashboard overview" description="A view of student screening and support."/><DemoNotice/><div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{stats.map(stat => <StatCard key={stat.label} {...stat}/>)}</div><div className="mb-6 grid min-w-0 gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(240px,1fr)]"><ScreeningActivityChart data={activity}/><Panel title="Next steps"><p className="leading-7 text-slate-600">{pending} sample sessions await review. Screening supports professional assessment and does not establish a diagnosis.</p><div className="mt-6 flex flex-wrap gap-3"><a className="primary-button inline-flex" href="#/screenings/new">New screening</a><a className="primary-button inline-flex" href="#/counselling">Review sessions</a></div><p className="mt-5 text-xs text-slate-500">Fixed sample week: {samplePeriod}</p></Panel></div><RecentRecordsTable records={recordRows(data).slice(0, 6)} query={query}/></>;
+import StatCard from '../components/StatCard';
+import { PageHeader, Panel } from './PageSupport';
+import { label, date } from './liveFormat';
+import { ResourceState, Table } from './LiveSupport';
+export default function Dashboard() {
+  const load = useCallback(async signal => {
+    const [summary, recent, sessions] = await Promise.all([request('/reports/summary', { signal }), screeningService.list({ limit: 10 }, { signal }), allPages('/screenings', { signal })]); const activity = Array.from({ length: 7 }, (_, index) => {
+      const day = new Date(); day.setHours(0,0,0,0); day.setDate(day.getDate() - 6 + index);
+      const end = new Date(day); end.setDate(end.getDate() + 1);
+      return { day: day.toLocaleDateString(undefined, { month:'short', day:'numeric' }), screenings: sessions.filter(s => new Date(s.created_at) >= day && new Date(s.created_at) < end).length };
+    });
+    return { summary, recent, activity };
+  }, []); const resource = useResource(load);
+  return <><PageHeader title="Dashboard" description="Current operational records from your backend." /><ResourceState resource={resource}>{({ summary: s, recent, activity }) => <><p className="mb-5 text-sm text-slate-500">Scope: {label(s.scope)} · Updated {date(s.generated_at)} <button className="secondary-button ml-3" onClick={resource.reload}>Refresh</button></p><section className="stats-grid"><StatCard label="Screening sessions" value={s.screening_sessions} description="Within your access scope" icon={ClipboardList} /><StatCard label="Awaiting review" value={s.awaiting_review} description="Submitted screening sessions" icon={Clock3} tone="amber" /><StatCard label="Reviewed" value={s.reviewed} description="Human review recorded" icon={ClipboardCheck} tone="green" /><StatCard label="Scheduled follow-ups" value={s.scheduled_followups} description="Within your access scope" icon={CalendarCheck} /></section><Panel title="Recent screening records"><Table headers={['Screening', 'Measured', 'Review status', 'Prediction']} rows={recent.items} render={r => <><td><a href={`#/screenings/details?id=${r.id}`}>{r.id.slice(0,8)}</a></td><td>{date(r.measured_at)}</td><td>{label(r.review_status)}</td><td>{label(r.prediction_status)}</td></>} /></Panel><ScreeningActivityChart data={activity} /><Panel title="Review progress"><dl className="live-details">{['draft','awaiting_review','in_review','reviewed'].map(v => <div key={v}><dt>{label(v)}</dt><dd>{s[v]}</dd></div>)}</dl></Panel></>}</ResourceState></>;
 }

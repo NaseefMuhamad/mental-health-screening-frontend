@@ -1,52 +1,59 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AuthContext } from './authState';
 import { authService } from '../services/authService';
-import { apiEnabled } from '../services/api';
-
+import { getAccessToken, setAccessToken } from '../services/api';
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(apiEnabled);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const operation = useRef(0);
+  const [restoring, setRestoring] = useState(() => Boolean(getAccessToken()));
+  const [restoreError, setRestoreError] = useState('');
+  const [restoreAttempt, setRestoreAttempt] = useState(0);
+  const retryRestore = useCallback(() => {
+    setRestoreError(''); setRestoring(true); setRestoreAttempt(value => value + 1);
+  }, []);
   useEffect(() => {
-    if (!apiEnabled) return;
+    const token = getAccessToken();
+    if (!token) return;
     const controller = new AbortController();
-    const current = ++operation.current;
-    authService.me({ signal: controller.signal })
-      .then(value => {
-        if (!value?.id || !value.role) throw new Error('Unexpected session response. Check the backend mapping.');
-        if (operation.current === current) setUser(value);
-      })
-      .catch(cause => {
-        if (cause.name !== 'AbortError' && operation.current === current && cause.status !== 401) setError(cause.message);
-      })
-      .finally(() => { if (!controller.signal.aborted && operation.current === current) setLoading(false); });
-    return () => controller.abort();
-  }, []);
-
+    let active = true;
+    authService.me({ signal: controller.signal }).then(value => {
+      if (active && getAccessToken() === token) setUser(value);
+    }).catch(cause => {
+      if (!active || controller.signal.aborted) return;
+      if (cause.status === 401) {
+        setAccessToken(null); setUser(null); setError('Your session ended. Please sign in again.');
+      } else { setRestoreError(cause.message); }
+    }).finally(() => { if (active) setRestoring(false); });
+    return () => { active = false; controller.abort(); };
+  }, [restoreAttempt]);
   const login = useCallback(async credentials => {
-    if (!apiEnabled) throw new Error('Login is disabled in the demo preview.');
-    const current = ++operation.current;
     setLoading(true); setError('');
-    try {
-      const value = await authService.login(credentials);
-      if (operation.current === current) setUser(value);
-      return value;
-    } catch (cause) {
-      if (operation.current === current) { setUser(null); setError(cause.message); }
-      throw cause;
-    } finally { if (operation.current === current) setLoading(false); }
+    try { const value = await authService.login(credentials); setUser(value); return value; }
+    finally { setLoading(false); }
   }, []);
-
   const logout = useCallback(async () => {
-    const current = ++operation.current;
-    setUser(null); setError(''); setLoading(true);
-    try { if (apiEnabled) await authService.logout(); }
-    catch (cause) { if (operation.current === current) setError('Local access cleared, but server logout failed. Retry to end the server session.'); throw cause; }
-    finally { if (operation.current === current) setLoading(false); }
+    await authService.logout();
+    setUser(null); setError('');
+    window.location.hash = '/login';
   }, []);
-
-  const value = useMemo(() => ({ user, loading, error, login, logout,
-    isAuthenticated: Boolean(user), apiEnabled }), [user, loading, error, login, logout]);
+  useEffect(() => {
+    const expire = () => { setUser(null); setAccessToken(null); setError('Your session ended. Please sign in again.'); setRestoreError(''); setRestoring(false); };
+    window.addEventListener('session-expired', expire);
+    return () => window.removeEventListener('session-expired', expire);
+  }, []);
+  const userId = user?.id;
+  useEffect(() => {
+    if (!userId) return;
+    let active = true;
+    const refresh = () => {
+      if (document.visibilityState !== 'visible' || !getAccessToken()) return;
+      authService.me().then(value => { if (active) setUser(value); }).catch(() => {});
+    };
+    const timer = setInterval(refresh, 60000);
+    window.addEventListener('focus', refresh);
+    return () => { active = false; clearInterval(timer); window.removeEventListener('focus', refresh); };
+  }, [userId]);
+  const value = useMemo(() => ({ user, loading, error, restoring, restoreError, retryRestore, login, logout, isAuthenticated: Boolean(user), apiEnabled: true }), [user, loading, error, restoring, restoreError, retryRestore, login, logout]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

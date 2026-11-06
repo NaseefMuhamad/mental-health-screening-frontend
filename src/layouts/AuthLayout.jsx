@@ -40,7 +40,7 @@ export default function AuthLayout({
             </span>
           </a>
           <span className="rounded-full bg-blue-50 px-3 py-1 text-xs text-blue-700">
-            Interface preview
+            Staff access
           </span>
         </div>
       </header>
@@ -58,7 +58,7 @@ export default function AuthLayout({
       <footer className="mx-auto max-w-3xl px-5 pb-8 text-center text-xs leading-6 text-slate-500">
         Screening supports professional assessment and does not establish a diagnosis.
         <br />
-        Demo only. Authentication is not connected.
+        Accounts are managed by your institution administrator.
       </footer>
     </div>
   );

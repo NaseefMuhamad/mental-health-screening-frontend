@@ -1,14 +1,16 @@
 import { useState } from 'react';
-import { roleOptions } from './demoStore';
-import { PageHeader, DemoNotice, Panel, Field, Feedback, inputClass } from './PageSupport';
-// onPreview receives a role string. It must not establish a real authenticated session.
-export default function Login({ onPreview }) {
-  const [role, setRole] = useState(roleOptions[0]);
-  const [message, setMessage] = useState('');
-  function preview(event) {
-    event.preventDefault();
-    if (onPreview) onPreview(role);
-    else setMessage(`Selected ${role} for preview. Role-based layouts and authentication will be wired later.`);
+import useAuth from '../hooks/useAuth';
+import { apiBaseUrl } from '../services/api';
+import { inputClass } from './pageUtils';
+import { Panel, Field, Feedback } from './PageSupport';
+export default function Login() {
+  const { login, loading, error: sessionError } = useAuth();
+  const [error, setError] = useState('');
+  async function submit(event) {
+    event.preventDefault(); setError('');
+    const form = new FormData(event.currentTarget);
+    try { await login({ email: form.get('email').trim(), password: form.get('password') }); window.location.hash = '/dashboard'; }
+    catch (cause) { setError(cause.message); }
   }
-  return <div className="mx-auto max-w-xl"><PageHeader title="Workspace access" description="Authentication integration is pending."/><DemoNotice/><Panel title="Preview a user role"><p className="mb-5 text-sm leading-7 text-slate-600">This screen does not sign you in. Real login will be connected to the backend authentication service. Do not enter passwords here.</p><form onSubmit={preview}><Field label="Preview role"><select value={role} onChange={event => setRole(event.target.value)} className={inputClass}>{roleOptions.map(item => <option key={item}>{item}</option>)}</select></Field><button className="primary-button mt-5" type="submit">Select preview role</button><Feedback message={message}/></form><a href="#/dashboard" className="mt-6 inline-block text-blue-700 underline">Explore the fictional dashboard</a></Panel></div>;
+  return <Panel title="Staff sign in"><p className="mb-5">Use your administrator or activated staff account.</p><form onSubmit={submit} className="live-form"><Field label="Email"><input className={inputClass} type="email" name="email" autoComplete="username" required maxLength={254} /></Field><Field label="Password"><input className={inputClass} type="password" name="password" autoComplete="current-password" required maxLength={1024} /></Field><button className="primary-button" disabled={loading}>{loading ? 'Signing in…' : 'Sign in'}</button><Feedback error={error || sessionError} /></form><p className="mt-5"><a href="#/accept-invitation">Have a staff invitation? Activate your account</a></p><p className="mt-5 text-xs text-slate-500">Backend: {apiBaseUrl}</p></Panel>;
 }

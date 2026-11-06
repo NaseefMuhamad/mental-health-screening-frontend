@@ -1,19 +1,15 @@
-import { useState } from 'react';
-import DataTable from '../components/DataTable';
-import { useDemoStore, addUser, setUserRole, roleOptions } from './demoStore';
-import { PageHeader, DemoNotice, Panel, Field, Feedback, inputClass } from './PageSupport';
+import { useCallback, useState } from 'react';
+import useResource from '../hooks/useResource';
+import { staffService } from '../services/staffService';
+import { PageHeader, Panel } from './PageSupport';
+import { label, date } from './liveFormat';
+import { ResourceState, Form, Select, Input, Textarea, Table, Pager, Action } from './LiveSupport';
 export default function Users() {
-  const data = useDemoStore();
-  const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
-  function submit(event) {
-    event.preventDefault(); setError(''); setMessage('');
-    const form = event.currentTarget;
-    const values = Object.fromEntries(new FormData(form)); values.name = values.name.trim(); values.email = values.email.trim();
-    if (!values.name) { setError('Enter a nonblank demo name.'); return; }
-    try { addUser(values); form.reset(); setMessage('Demo user listed. No account or credentials were created.'); } catch (err) { setError(err.message); }
-  }
-  const columns = [{key:'name',label:'Demo name'},{key:'email',label:'Demo email'},{key:'role',label:'Role',render:row => <label><span className="sr-only">Role for {row.name}</span><select value={row.role} onChange={event => {setUserRole(row.id,event.target.value);setMessage('Demo role updated. No real permissions changed.');}}>{roleOptions.map(role => <option key={role}>{role}</option>)}</select></label>}];
-  return <><PageHeader title="Users" description="Administrator interface demonstration. No real accounts or permissions."/><DemoNotice/><div className="mb-6"><Panel title="Add a fictional user"><form onSubmit={submit}><div className="grid gap-4 sm:grid-cols-3"><Field label="Demo name *"><input name="name" required maxLength={100} className={inputClass}/></Field><Field label="Demo email *"><input name="email" type="email" placeholder="person@example.test" required maxLength={150} className={inputClass}/></Field><Field label="Role *"><select name="role" className={inputClass}>{roleOptions.map(role => <option key={role}>{role}</option>)}</select></Field></div><button className="primary-button mt-5" type="submit">Add demo user</button><Feedback error={error} message={message}/></form></Panel></div><section className="panel"><div className="panel-heading"><h2>Demo users</h2></div><DataTable columns={columns} rows={data.users} caption="Fictional user accounts"/></section></>;
+  const [offset, setOffset] = useState(0); const [issued, setIssued] = useState(null); const [revision, setRevision] = useState(0);
+  const refresh = () => setRevision(v => v + 1);
+  return <><PageHeader title="Staff management" description="Invite staff and manage access. Deactivation preserves screening history." /><Panel title="Invite staff"><Form submit="Create invitation" onSave={staffService.invite} onDone={result => { setIssued(result); refresh(); }}><Input name="name" title="Full name" maxLength={120} /><Input name="email" title="Email" type="email" maxLength={254} /><Select name="role" title="Role"><option value="screening_personnel">Screening personnel</option><option value="counsellor">Counsellor</option></Select></Form></Panel>{issued && <Panel title="Invitation created"><p>Deliver this code privately to {issued.invitation.email}. It is shown only in this workspace session. The staff member opens the activation page and enters it.</p><p className="my-3">Expires: {date(issued.invitation.expires_at)}</p><Input title="Invitation code" name="issued_token" readOnly value={issued.acceptance_token} /><p className="my-3">Activation page: {window.location.origin}{window.location.pathname}#/accept-invitation</p><div className="live-pager"><button className="secondary-button" onClick={() => setIssued(null)}>Dismiss code</button><Action onClick={() => staffService.revoke(issued.invitation.id)} onDone={() => setIssued(null)}>Revoke this invitation</Action></div></Panel>}<StaffList key={`${offset}:${revision}`} offset={offset} onPage={setOffset} /></>;
 }
-
+function StaffList({ offset, onPage }) {
+  const load = useCallback(signal => staffService.list({ offset, limit: 20 }, { signal }), [offset]); const resource = useResource(load); const [selected, setSelected] = useState(null);
+  return <ResourceState resource={resource}>{page => <><Panel title="Staff accounts"><Table headers={['Name', 'Email', 'Role', 'Account status', 'Manage']} rows={page.items} render={u => <><td>{u.name}</td><td>{u.email}</td><td>{label(u.role)}</td><td>{u.is_active ? 'Active' : 'Inactive / invitation pending'}</td><td><button className="secondary-button" onClick={() => setSelected(u)}>Manage</button></td></>} /><Pager page={page} offset={offset} onChange={onPage} /></Panel>{selected && <Panel key={selected.id + selected.is_active} title={`Manage ${selected.name}`}><div className="live-columns"><Form submit={selected.is_active ? 'Deactivate account' : 'Reactivate account'} onSave={data => staffService.status(selected.id, { is_active: !selected.is_active, reason: data.reason })} onDone={() => { setSelected(null); resource.reload(); }}><Textarea title="Reason for status change" name="reason" /><p>Deactivation ends existing sessions. An invited account must be activated with its invitation before reactivation is possible.</p></Form><Form submit="Change role" onSave={data => staffService.role(selected.id, data.role)} onDone={() => { setSelected(null); resource.reload(); }}><Select name="role" title="Staff role" defaultValue={selected.role}>{['administrator','screening_personnel','counsellor'].map(v => <option key={v} value={v}>{label(v)}</option>)}</Select><p>Role changes end existing sessions. Hand over outstanding counselling cases first.</p></Form></div><button className="secondary-button mt-4" onClick={() => setSelected(null)}>Close</button></Panel>}</>}</ResourceState>;
+}

@@ -1,25 +1,20 @@
-import { useState } from 'react';
-import DataTable from '../components/DataTable';
-import SearchBar from '../components/SearchBar';
-import { useDemoStore, addStudent } from './demoStore';
-import { PageHeader, DemoNotice, Panel, Field, Feedback, inputClass, detailLink } from './PageSupport';
+import { useCallback, useState } from 'react';
+import useAuth from '../hooks/useAuth';
+import useResource from '../hooks/useResource';
+import { studentService } from '../services/studentService';
+import { PageHeader, Panel } from './PageSupport';
+import { Form, Input, Table, Pager, ResourceState } from './LiveSupport';
 export default function Students() {
-  const data = useDemoStore();
-  const [query, setQuery] = useState('');
-  const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
-  function register(event) {
-    event.preventDefault(); setError(''); setMessage('');
-    const form = event.currentTarget;
-    const values = Object.fromEntries(new FormData(form));
-    for (const key of Object.keys(values)) values[key] = values[key].trim();
-    if (!values.id || !values.name || !values.department || !values.institution) { setError('Complete the required fields with nonblank values.'); return; }
-    try { addStudent({ ...values, age: Number(values.age) }); form.reset(); setMessage('Fictional student added to this demo session.'); } catch (err) { setError(err.message); }
-  }
-  const columns = [
-    { key: 'name', label: 'Student', render: row => <a className="text-blue-700 underline" href={detailLink('students', row.id)}>{row.name}</a> },
-    { key: 'id', label: 'Student ID' }, { key: 'department', label: 'Department' }, { key: 'year', label: 'Academic year' }, { key: 'institution', label: 'Institution' },
-  ];
-  const rows = data.students.filter(row => Object.values(row).join(' ').toLowerCase().includes(query.trim().toLowerCase()));
-  return <><PageHeader title="Students" description="Find a fictional student or register a sample record."/><DemoNotice/><div className="mb-6"><Panel title="Register a demo student"><form onSubmit={register}><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"><Field label="Student ID *"><input name="id" required maxLength={50} className={inputClass}/></Field><Field label="Display name *"><input name="name" required maxLength={100} className={inputClass}/></Field><Field label="Age (years) *"><input name="age" type="number" min="1" max="120" step="1" required className={inputClass}/></Field><Field label="Department / course *"><input name="department" required maxLength={100} className={inputClass}/></Field><Field label="Academic year *"><select name="year" className={inputClass} required><option value="">Select year</option>{[1,2,3,4,5,6].map(year => <option key={year}>{year}</option>)}</select></Field><Field label="Institution *"><input name="institution" required maxLength={120} className={inputClass}/></Field></div><button className="primary-button mt-5" type="submit">Add demo student</button><Feedback error={error} message={message}/></form></Panel></div><section className="panel"><div className="panel-heading"><h2>Student directory</h2><SearchBar value={query} onChange={setQuery}/></div><DataTable columns={columns} rows={rows} caption="Fictional students" emptyMessage="No students match your search."/></section></>;
+  const { user } = useAuth(); const [search, setSearch] = useState(''); const [offset, setOffset] = useState(0); const [revision, setRevision] = useState(0);
+  return <><PageHeader title="Students" description="Student records are stored by the backend. Students do not have accounts." /><Panel><Form submit="Search" onSave={async data => { setSearch(data.search.trim()); setOffset(0); }}><Input title="Search name or student code" name="search" required={false} maxLength={120} /></Form></Panel><StudentList key={`${search}:${offset}:${revision}`} search={search} offset={offset} onPage={setOffset} />{user.role === 'screening_personnel' && <Panel title="Register student"><StudentForm onDone={() => { setOffset(0); setRevision(v => v + 1); }} /></Panel>}</>;
+}
+export function StudentForm({ student, onDone }) {
+  return <Form onSave={data => {
+    const body = { name: data.name.trim(), age: Number(data.age), department: data.department.trim(), academic_year: data.academic_year.trim(), institution: data.institution.trim() };
+    return student ? studentService.update(student.id, body) : studentService.create({ ...body, student_code: data.student_code.trim() });
+  }} onDone={onDone}>{!student && <Input title="Student code" name="student_code" maxLength={50} />}<Input title="Full name" name="name" defaultValue={student?.name} maxLength={120} /><Input title="Age (years)" name="age" type="number" min={1} max={120} step={1} defaultValue={student?.age} /><Input title="Department" name="department" maxLength={120} defaultValue={student?.department} /><Input title="Academic year" name="academic_year" maxLength={32} defaultValue={student?.academic_year} /><Input title="Institution" name="institution" maxLength={120} defaultValue={student?.institution} /></Form>;
+}
+function StudentList({ search, offset, onPage }) {
+  const load = useCallback(signal => studentService.list({ search, offset, limit: 20 }, { signal }), [search, offset]); const resource = useResource(load);
+  return <ResourceState resource={resource}>{page => <Panel title="Student directory"><Table headers={['Student code', 'Name', 'Department', 'Academic year']} rows={page.items} render={row => <><td>{row.student_code}</td><td><a href={`#/students/details?id=${row.id}`}>{row.name}</a></td><td>{row.department}</td><td>{row.academic_year}</td></>} /><Pager page={page} offset={offset} onChange={onPage} /></Panel>}</ResourceState>;
 }

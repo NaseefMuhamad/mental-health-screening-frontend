@@ -15,11 +15,5 @@ export function Feedback({ error, message }) {
   return <>{error && <p role="alert" className="mt-4 text-sm text-red-700">{error}</p>}{message && <p role="status" className="mt-4 text-sm text-emerald-700">{message}</p>}</>;
 }
 export function MissingRecord({ type, href }) {
-  return <Panel title={`${type} not found`}><p className="mb-5">Choose a record from the list. Local demo records disappear after refresh.</p><a className="primary-button inline-flex" href={href}>Back to list</a></Panel>;
+  return <Panel title={`${type} not found`}><p className="mb-5">Choose a record from the list or check your access with the administrator.</p><a className="primary-button inline-flex" href={href}>Back to list</a></Panel>;
 }
-export const inputClass = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800';
-export function routeParam(name) {
-  if (typeof window === 'undefined') return '';
-  return new URLSearchParams(window.location.hash.split('?')[1] || '').get(name) || '';
-}
-export function detailLink(type, id) { return `#/${type}/details?id=${encodeURIComponent(id)}`; }

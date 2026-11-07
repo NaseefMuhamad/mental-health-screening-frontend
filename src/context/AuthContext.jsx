@@ -54,6 +54,6 @@ export function AuthProvider({ children }) {
     window.addEventListener('focus', refresh);
     return () => { active = false; clearInterval(timer); window.removeEventListener('focus', refresh); };
   }, [userId]);
-  const value = useMemo(() => ({ user, loading, error, restoring, restoreError, retryRestore, login, logout, isAuthenticated: Boolean(user), apiEnabled: true }), [user, loading, error, restoring, restoreError, retryRestore, login, logout]);
+  const value = useMemo(() => ({ user, loading, error, restoring, restoreError, retryRestore, login, logout, isAuthenticated: Boolean(user) }), [user, loading, error, restoring, restoreError, retryRestore, login, logout]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

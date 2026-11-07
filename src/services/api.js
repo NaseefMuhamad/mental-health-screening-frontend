@@ -1,5 +1,4 @@
 export const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
-export const apiEnabled = true;
 // Per-tab persistence survives refresh without storing passwords or user profiles.
 const sessionKey = `screening-session:${apiBaseUrl}`;
 function readStoredToken() {

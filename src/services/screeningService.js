@@ -7,5 +7,6 @@ export const screeningService = {
   submit: id => request(path(id) + '/submit', { method: 'POST' }),
   assign: (id, body) => request(path(id) + '/assignment', { method: 'PUT', body }),
   beginReview: id => request(path(id) + '/begin-review', { method: 'POST' }),
+  retryPrediction: id => request(path(id) + '/retry-prediction', { method: 'POST' }),
   handover: (id, body) => request(path(id) + '/handover', { method: 'POST', body }),
 };

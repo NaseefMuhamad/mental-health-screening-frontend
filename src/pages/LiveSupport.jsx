@@ -6,15 +6,15 @@ export function ResourceState({ resource, children }) {
   if (resource.error) return <Panel><p role="alert">{resource.error}</p><button className="secondary-button mt-4" onClick={resource.reload}>Retry</button></Panel>;
   return children(resource.data);
 }
-export function Form({ onSave, children, submit = 'Save', onDone }) {
+export function Form({ onSave, children, submit = 'Save', secondarySubmit, onDone }) {
   const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [message, setMessage] = useState('');
   async function save(event) {
     event.preventDefault(); const form = event.currentTarget; const data = Object.fromEntries(new FormData(form));
     setBusy(true); setError(''); setMessage('');
-    try { const result = await onSave(data); setMessage('Saved successfully.'); onDone?.(result, form); }
+    try { const result = await onSave(data, event.nativeEvent.submitter?.value || 'primary'); setMessage('Saved successfully.'); onDone?.(result, form); }
     catch (cause) { setError(cause.message); } finally { setBusy(false); }
   }
-  return <form className="live-form" onSubmit={save}><fieldset disabled={busy} className="live-form">{children}<button className="primary-button" type="submit">{busy ? 'Saving…' : submit}</button></fieldset><Feedback error={error} message={message} /></form>;
+  return <form className="live-form" onSubmit={save}><fieldset disabled={busy} className="live-form">{children}<button className="primary-button" type="submit" value="primary">{busy ? 'Saving…' : submit}</button>{secondarySubmit && <button className="secondary-button" type="submit" value="secondary">{secondarySubmit}</button>}</fieldset><Feedback error={error} message={message} /></form>;
 }
 export function Input({ name, title, type = 'text', required = true, ...props }) {
   return <Field label={title}><input className={inputClass} name={name} type={type} required={required} {...props} /></Field>;

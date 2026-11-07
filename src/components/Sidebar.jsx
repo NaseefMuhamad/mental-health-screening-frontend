@@ -9,7 +9,7 @@ const navigation = [
   { label: 'Counselling', href: '#/counselling', key: 'counselling' },
   { label: 'Follow-ups', href: '#/follow-ups', key: 'follow-ups' },
   { label: 'Reports', href: '#/reports', key: 'reports' },
-  { label: 'Users', href: '#/users', key: 'users' },
+  { label: 'Staff management', href: '#/users', key: 'users' },
 ];
 
 const icons = { dashboard: LayoutDashboard, students: Users, 'new-screening': ClipboardPlus, screenings: ClipboardList, counselling: MessagesSquare, 'follow-ups': CalendarDays, reports: BarChart3, users: UserCog };
@@ -25,7 +25,7 @@ export default function Sidebar({ activeKey, open, onClose, sidebarRef }) {
       const Icon = icons[item.key];
       return <a key={item.key} href={item.href} aria-current={activeKey === item.key ? 'page' : undefined} className={`nav-item ${activeKey === item.key ? 'active' : ''}`}><Icon size={19} aria-hidden="true" />{item.label}</a>;
     })}</nav>
-    <div className="sidebar-note"><span className="live-dot" /> Staff workspace<p>Access follows your staff role and assigned cases.</p></div>
+    <div className="sidebar-note"><span className="live-dot" /> Staff workspace<p>Access follows your staff role and the cases you handle.</p></div>
     <div className="sidebar-footer">Student care, thoughtfully supported.</div>
   </aside>;
 }

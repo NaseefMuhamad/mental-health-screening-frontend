@@ -40,7 +40,7 @@ export default function App() {
   const route = routes[pathname] || (pathname === '/login' || pathname === '/accept-invitation' ? routes['/dashboard'] : null);
   if (!route) return <DashboardLayout activePage="Page not found"><p>Page not found. <a href="#/dashboard">Open dashboard</a></p></DashboardLayout>;
   const { Component, title, key, roles } = route;
-  return <DashboardLayout activePage={title} activeKey={key} routeKey={`${user.id}:${hash}`} searchable={false}>
+  return <DashboardLayout activePage={title} activeKey={key} routeKey={`${user.id}:${hash}`}>
     <ProtectedRoute roles={roles}><Component key={`${user.id}:${hash}`} studentId={params.get(pathname === '/students/details' ? 'id' : 'studentId') || undefined} screeningId={params.get(pathname === '/screenings/details' ? 'id' : 'screeningId') || undefined} /></ProtectedRoute>
   </DashboardLayout>;
 }

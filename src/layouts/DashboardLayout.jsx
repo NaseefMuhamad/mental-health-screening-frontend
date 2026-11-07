@@ -2,12 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import Navbar from '../components/Navbar';
 
-// A changed routeKey resets transient search/menu state, while the backend retains saved records.
+// A changed routeKey resets transient menu state, while the backend retains saved records.
 export default function DashboardLayout({
   activePage = 'Dashboard',
   activeKey = 'dashboard',
   routeKey = activeKey,
-  searchable = ['dashboard', 'screenings'].includes(activeKey),
   children,
 }) {
   return (
@@ -15,15 +14,13 @@ export default function DashboardLayout({
       key={routeKey}
       activePage={activePage}
       activeKey={activeKey}
-      searchable={searchable}
     >
       {children}
     </DashboardShell>
   );
 }
 
-function DashboardShell({ activePage, activeKey, searchable, children }) {
-  const [query, setQuery] = useState('');
+function DashboardShell({ activePage, activeKey, children }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(() => (
     typeof window !== 'undefined' && window.matchMedia('(max-width: 760px)').matches
@@ -138,15 +135,12 @@ function DashboardShell({ activePage, activeKey, searchable, children }) {
       <div className="workspace" inert={mobileMenuOpen || undefined}>
         <Navbar
           activePage={activePage}
-          query={query}
-          onSearch={setQuery}
-          searchable={searchable}
-          menuOpen={mobileMenuOpen}
+              menuOpen={mobileMenuOpen}
           onMenuToggle={() => setMenuOpen(open => !open)}
           toggleRef={toggleRef}
         />
         <main id="main-content" ref={mainRef} tabIndex={-1}>
-          {typeof children === 'function' ? children({ query }) : children}
+          {children}
           <footer className="page-footer">
             <span>Mental Health Screening Support</span>
             <span>Staff workspace · records supplied by the backend</span>

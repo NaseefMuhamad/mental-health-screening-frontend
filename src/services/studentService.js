@@ -1,5 +1,6 @@
 import { request, queryString } from './api';
 export const studentService = {
+  registrationSettings: options => request('/students/registration-settings', options),
   list: (params, options) => request('/students' + queryString(params), options),
   get: (id, options) => request(`/students/${encodeURIComponent(id)}`, options),
   create: body => request('/students', { method: 'POST', body }),
